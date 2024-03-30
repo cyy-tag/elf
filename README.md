@@ -1,5 +1,5 @@
 # elf function
-Finds the dynamic library address and the offset value of the corresponding function for uprobe event use
+Finds the dynamic library path and the offset value of the corresponding function for uprobe event use
 # make example
 $make  
 ./output/address targetpid libname funcname  
