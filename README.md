@@ -3,4 +3,4 @@ Finds the dynamic library address and the offset value of the corresponding func
 # make example
 $make
 ./output/address targetpid libname funcname
---./output/address pid c malloc
+ex: ./output/address pid c malloc
