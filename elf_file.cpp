@@ -1,18 +1,28 @@
-#include "file.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <cstring>
+#include "elf_file.h"
 
 Symbol::Symbol(GElf_Sym sym, const char* name)
   : sym_(sym), name_(name)
 {
 }
 
-std::string Symbol::Name()
+std::string Symbol::Name() const
 {
   return name_;
+}
+
+uint64_t Symbol::Value() const
+{
+  return sym_.st_value;
+}
+
+int Symbol::Type() const
+{
+  return GELF_ST_TYPE(sym_.st_info);
 }
 
 bool Symbol::IsSame(const char* name)
@@ -20,18 +30,18 @@ bool Symbol::IsSame(const char* name)
   return !strcmp(name, name_.c_str());
 }
 
-File::File(std::string file_path)
+ElfFile::ElfFile(std::string file_path)
  : elf_path_(file_path)
 {
   e = OpenElf(elf_path_.c_str());
 }
 
-File::~File()
+ElfFile::~ElfFile()
 {
   CloseElf();
 }
 
-Elf* File::OpenElf(const char* path)
+Elf* ElfFile::OpenElf(const char* path)
 {
   if (elf_version(EV_CURRENT) == EV_NONE) {
     return nullptr;
@@ -45,7 +55,7 @@ Elf* File::OpenElf(const char* path)
   return elf_begin(fd_, ELF_C_READ, nullptr);
 }
 
-void File::CloseElf()
+void ElfFile::CloseElf()
 {
   if (!e) {
     elf_end(e);
@@ -55,7 +65,7 @@ void File::CloseElf()
   }
 }
 
-bool File::SectionAndHeaderByType(int type, Elf_Scn** scn, GElf_Shdr* shdr)
+bool ElfFile::SectionAndHeaderByType(int type, Elf_Scn** scn, GElf_Shdr* shdr)
 {
   for(auto sec : sections_)
   {
@@ -69,7 +79,7 @@ bool File::SectionAndHeaderByType(int type, Elf_Scn** scn, GElf_Shdr* shdr)
   return false;
 }
 
-bool File::Load()
+bool ElfFile::Load()
 {
   if (!e) {
     return false;
@@ -78,15 +88,28 @@ bool File::Load()
     return false;
   }
 
-  // Load Section
+  // Load section
   Elf_Scn *scn = nullptr;
   while((scn = elf_nextscn(e, scn))) {
     sections_.push_back(scn);
   }
+  // Load program header
+  size_t nhdrs = 0;
+  GElf_Phdr phdr;
+  if (file_header_.e_type == ET_EXEC || file_header_.e_type == ET_DYN) {
+    if (elf_getphdrnum(e, &nhdrs) != 0) {
+      return false;
+    }
+    for (size_t i = 0; i < nhdrs; i++) {
+      if (!gelf_getphdr(e, i, &phdr))
+        continue;
+      prohdrs_.emplace_back(phdr);
+    }
+  }
   return true;
 }
 
-std::vector<Symbol> File::GetSymbols(int type)
+std::vector<Symbol> ElfFile::GetSymbols(int type)
 {
   GElf_Sym sym;
   GElf_Shdr shdr;
@@ -104,4 +127,14 @@ std::vector<Symbol> File::GetSymbols(int type)
     }
   }
   return ret;
+}
+
+std::vector<Symbol> ElfFile::Symbols()
+{
+  return GetSymbols(SHT_SYMTAB);
+}
+
+std::vector<Symbol> ElfFile::DynamicSymbols()
+{
+  return GetSymbols(SHT_DYNSYM);
 }

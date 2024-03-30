@@ -1,2 +1,6 @@
-# elf
- 
+# elf function
+Finds the dynamic library address and the offset value of the corresponding function for uprobe event use
+# make example
+$make
+./output/address targetpid libname funcname
+--./output/address pid c malloc
